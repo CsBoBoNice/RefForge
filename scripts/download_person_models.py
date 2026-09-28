@@ -19,7 +19,9 @@ import sys
 import tempfile
 import zipfile
 
-from download_utils import download_smart
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from download_utils import download_smart  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PERSON_DIR = os.path.join(ROOT, "models", "person")

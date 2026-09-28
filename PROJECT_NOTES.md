@@ -662,6 +662,13 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
 - 影响：`scripts/download_runtime.py`、`scripts/download_utils.py`、`REQUIREMENTS.md` 12.2、本文件；无新增依赖（xz 由标准库 `lzma`/`tarfile` 支持）。
 - 验证：`_archive_ok(截断的 114MB BtbN zip)=False`；`download_runtime.py --only ffmpeg --force` 实测选 npmmirror（2.58MB/s）、下载 140.6MB、`_archive_ok` 通过、解出 `bin/{ffmpeg,ffprobe,ffplay}.exe`，`ffmpeg/ffprobe -version` 正常（n8.1.3）；`_npmmirror_ffmpeg_url()` 解析出 `.../v8.1.3/ffmpeg-8.1.3-win32-x64-gpl.tar.xz`；三源按预期返回；`python -m compileall app scripts` 通过。
 
+#### [P51] 一键搭建下载模型报 ModuleNotFoundError：脚本未把自身目录加入 sys.path
+- 现象：`一键环境搭建.bat` 走到「人声分离四档」时，`download_separation_models.py` 抛 `ModuleNotFoundError: No module named 'download_utils'`，setup 中止。
+- 原因：包内用 **embeddable Python**，存在 `python\python310._pth`。该文件存在时，解释器进入 `._pth` 模式：`sys.path` 完全由 `._pth` 的行决定（仅 `python310.zip` / `.` / `Lib\site-packages` / `..\app`），**不会自动把「被运行脚本所在目录」加入 `sys.path[0]`**。因此直接 `python scripts\xxx.py` 时，脚本里 `from download_utils import ...`（同级模块）找不到；而经 `dev.bat` 手动跑之所以有时没事，是因为各脚本自己插入了目录。`download_separation_models.py`、`download_person_models.py`、`download_anime_person_models.py` 三个脚本漏了这一步（`download_runtime.py`、`setup_env.py`、各 `run_*_test.py` 都有）。
+- 修复：在上述三个脚本 `from download_utils import ...` 之前加 `sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`。约定：**任何直接运行、且导入 `scripts/` 同级模块的脚本，必须在 import 前把自身目录加入 `sys.path`**（不可依赖 `._pth` 或 CWD）。
+- 影响：`scripts/download_separation_models.py`、`scripts/download_person_models.py`、`scripts/download_anime_person_models.py`、`REQUIREMENTS.md` 12.2、本文件。
+- 验证：三个脚本 `--help` 均以包内 Python（CWD=包根，与 setup 调用方式一致）运行退出码 0、不再报 ModuleNotFoundError；`python -m compileall scripts` 通过。
+
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 
 以下条目对应的功能已随 P38 移除，不再实现；此处仅保留一句话结论：

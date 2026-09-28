@@ -19,7 +19,9 @@ import argparse
 import os
 import sys
 
-from download_utils import pick_fastest
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from download_utils import pick_fastest  # noqa: E402
 
 ANIME_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
