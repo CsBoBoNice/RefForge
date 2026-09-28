@@ -621,6 +621,19 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
 - 影响：新增 `一键环境搭建.bat`、`scripts/bootstrap_python.ps1`、`scripts/setup_env.py`、`scripts/download_utils.py`、`scripts/download_runtime.py`；重写 `.gitignore`；`scripts/setup_runtime.bat` 改为调用 `setup_env.py`；`scripts/download_separation_models.py` / `download_person_models.py` / `download_anime_person_models.py` 接入多源测速；`readme.md` / `AGENTS.md` / `REQUIREMENTS.md` / 本文件同步。`config.json` 与 `app/config.py` 未改动（模型名不变）。
 - 验证：`python -m compileall app scripts` 通过；本机确认 `download_runtime.py --only ffmpeg/llama` 正确识别就绪并跳过；测速探测确认 ffmpeg（BtbN vs gyan）、llama（GitHub 镜像）、GGUF（ModelScope / hf-mirror）均能选出最快源；强制重下 llama b10991（CPU + CUDA）后 `llama-server.exe --version` 正常（build 10991）。全量模型下载耗时较长，未在本次完整重跑。
 
+#### [P48] Windows 脚本编码与换行（一键环境搭建报错修复）
+- 现象：双击 `一键环境搭建.bat` 出现 `'导包内可移植' is not recognized as an internal or external command`、`'（ASR' is not recognized` 等；随后 `scripts/bootstrap_python.ps1` 报 `Array index expression is missing or not valid` / `The string is missing the terminator`，中文全成乱码（如 `閿欒锛歱ip 涓嶅彲鐢ㄣ€?`），搭建中止并提示重试。
+- 原因：
+  1. `一键环境搭建.bat`、`scripts/setup_runtime.bat`、`scripts/bootstrap_python.ps1` 为 **LF 换行**；cmd.exe 只能可靠解析 CRLF 批处理，LF 会使行被错误连接/拆断（`@echo off` 失效、命令回显、`echo` 行错位）。
+  2. 批处理为 **UTF-8 无 BOM**，但 cmd.exe 读取批处理时按**当前控制台代码页**解码，中文 Windows 为 CP936/GBK；`chcp 65001` 在文件开始被读取之后才执行，故含中文的 `echo` 行被按 GBK 误解码而错位。给 `.bat` 加 UTF-8 BOM 也**无效**（实测 cmd 不剥离 BOM，首行变成 `?@echo off`，`@echo off` 不生效）。`下载模型.bat` 等同样存在此隐患（仅 banner 报错、功能未受影响而长期未被发现）。
+  3. `.ps1` 为 UTF-8 无 BOM，PowerShell 5.1 默认按 ANSI(CP936) 解码脚本，中文乱码会破坏引号配对，导致解析期报错。
+- 解决办法（约定）：
+  1. **`.bat` 一律存为 GBK(CP936)、CRLF 换行、不加 BOM**；保留 `chcp 65001`（配合 `PYTHONUTF8=1` 让 Python 输出 UTF-8）。中文 Windows（ACP=936）双击即正确解析与显示。
+  2. **`.ps1` 一律存为 UTF-8 **带 BOM**、CRLF 换行**，PowerShell 5.1 据此正确解码中文。
+  3. 改脚本用编辑工具或 `[System.IO.File]::WriteAllBytes` + 显式编码，禁止用会改编码的文本 cmdlet（见 P23）。
+- 影响：`一键环境搭建.bat`、`下载模型.bat`、`启动.bat`、`dev.bat`、`清理生成内容.bat`、`scripts/setup_runtime.bat`、`scripts/bootstrap_python.ps1`；`AGENTS.md` / `REQUIREMENTS.md` 同步。
+- 验证：将各 bat 头部（含全部中文 banner）提取后 `cmd /c` 运行，均无 `not recognized` 且 `@echo off` 生效（无命令回显）；`[System.Management.Automation.Language.Parser]::ParseFile` 解析 `bootstrap_python.ps1` 无错误；确认无 BOM、CR 数 = LF 数。
+
 
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 

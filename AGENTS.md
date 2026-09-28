@@ -69,6 +69,7 @@
 - 依赖已固定（基础：`opencv-python-headless` / `numpy` / `Pillow` / `scenedetect` / `click` / `platformdirs`；语音：`torch cu128` / `funasr` / `qwen-asr` / `modelscope` / `librosa` / `soundfile`；人声分离：`audio-separator` / `onnxruntime-gpu` / `torchvision cu128`；人物：`ultralytics --no-deps` / `lap`，人脸侧用 `onnxruntime` 直驱 buffalo_l，**不装 `insightface`**；动漫侧用既有 `transformers` 的 CLIP + `onnxruntime` 直驱动漫人物/人脸检测 ONNX（deepghs），**不新增依赖**，也**不使用 DeepDanbooru 标签向量**）；不要引入其他重量级或需联网下载的依赖，也不要安装 `opencv-python`（会与 headless 冲突）。新增依赖必须同步 `requirements.txt` 与 `scripts/setup_env.py`（及 `scripts/setup_runtime.bat`）。
 - 默认不添加多余注释；中文注释/文档字符串使用 UTF-8。
 - **禁止用 PowerShell 文本 cmdlet（`Get-Content` / `Set-Content` / `-replace` 等）读写含中文的 UTF-8 文件**（会破坏编码，见 `PROJECT_NOTES.md` P23）；改文件请用编辑工具。
+- **Windows 脚本编码/换行（强制，见 `PROJECT_NOTES.md` P48）**：`.bat` 一律 **GBK(CP936)、CRLF、无 BOM**（中文 Windows 下 cmd 才正确解析；加了 UTF-8 BOM 反而使 `@echo off` 失效）；`.ps1` 一律 **UTF-8 带 BOM、CRLF**（PowerShell 5.1 才正确解码中文）。保存时确保换行与编码正确。
 
 ## 项目约定
 

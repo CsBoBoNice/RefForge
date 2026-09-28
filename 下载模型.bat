@@ -3,13 +3,13 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 echo ============================================
-echo  ä¸€é”®ä¸‹è½½æ¨¡åž‹ï¼ˆä¸å« llama.cpp çš„ ggufï¼‰
-echo    - è¯­éŸ³è¯†åˆ« / å£°çº¹ / VAD  ^<- ModelScope
-echo    - äººå£°åˆ†ç¦»å››æ¡£æ¨¡åž‹       ^<- GitHubï¼ˆå«å›½å†…é•œåƒï¼‰
-echo    - äººç‰©æå–æ¨¡åž‹           ^<- GitHub / hf-mirror
-echo    - åŠ¨æ¼«äººç‰©æ¨¡åž‹           ^<- GitHubï¼ˆäººè„¸çº§è”ï¼‰/ hf-mirrorï¼ˆCLIPï¼‰
-echo  ç›®æ ‡ç›®å½•ï¼šmodels\asr\ã€models\separator\ ä¸Ž models\person\
-echo  å¯é€‰å‚æ•°ï¼š--force å¼ºåˆ¶é‡ä¸‹
+echo  Ò»¼üÏÂÔØÄ£ÐÍ£¨²»º¬ llama.cpp µÄ gguf£©
+echo    - ÓïÒôÊ¶±ð / ÉùÎÆ / VAD  ^<- ModelScope
+echo    - ÈËÉù·ÖÀëËÄµµÄ£ÐÍ       ^<- GitHub£¨º¬¹úÄÚ¾µÏñ£©
+echo    - ÈËÎïÌáÈ¡Ä£ÐÍ           ^<- GitHub / hf-mirror
+echo    - ¶¯ÂþÈËÎïÄ£ÐÍ           ^<- GitHub£¨ÈËÁ³¼¶Áª£©/ hf-mirror£¨CLIP£©
+echo  Ä¿±êÄ¿Â¼£ºmodels\asr\¡¢models\separator\ Óë models\person\
+echo  ¿ÉÑ¡²ÎÊý£º--force Ç¿ÖÆÖØÏÂ
 echo ============================================
 
 "%~dp0python\python.exe" "%~dp0scripts\download_models.py" %*
@@ -25,12 +25,12 @@ if errorlevel 1 goto fail
 if errorlevel 1 goto fail
 
 echo.
-echo å…¨éƒ¨æ¨¡åž‹ä¸‹è½½å®Œæˆã€‚
+echo È«²¿Ä£ÐÍÏÂÔØÍê³É¡£
 pause
 exit /b 0
 
 :fail
 echo.
-echo [é”™è¯¯] ä¸‹è½½å¤±è´¥ï¼Œè¯·æ£€æŸ¥ç½‘ç»œåŽé‡è¯•ã€‚
+echo [´íÎó] ÏÂÔØÊ§°Ü£¬Çë¼ì²éÍøÂçºóÖØÊÔ¡£
 pause
 exit /b 1

@@ -1,4 +1,4 @@
-# 引导包内可移植 Python 3.10.11（Windows embeddable），供「一键环境搭建.bat」调用。
+﻿# 引导包内可移植 Python 3.10.11（Windows embeddable），供「一键环境搭建.bat」调用。
 #
 # 步骤：下载 embeddable 压缩包（python.org，国内镜像兜底）-> 解压到 python\
 #       -> 写入 python310._pth（把 Lib\site-packages 与 ..\app 加入搜索路径）

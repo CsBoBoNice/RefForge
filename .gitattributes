@@ -1,0 +1,12 @@
+# 统一换行，避免跨机器 clone 后脚本被改成 LF 而失效（见 PROJECT_NOTES.md P48）
+* text=auto
+
+# Windows 批处理必须 CRLF（cmd.exe 才能正确解析）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# PowerShell 脚本必须 CRLF（UTF-8 带 BOM，见 P48）
+*.ps1 text eol=crlf
+
+# Shell 脚本用 LF
+*.sh text eol=lf
