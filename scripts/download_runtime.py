@@ -8,7 +8,8 @@
     dev.bat scripts\\download_runtime.py --only llama --only llm
 
 目标目录：
-    bin/                    ffmpeg.exe / ffprobe.exe / ffplay.exe（BtbN GPL，含 libx264）
+    bin/                    ffmpeg.exe / ffprobe.exe / ffplay.exe（静态 GPL，含 libx264）
+                            BtbN zip / gyan.dev zip / npmmirror tar.xz 三源选最快
     llama_cpp/llama_bin/    llama-server.exe + DLL（b10991，CPU + CUDA 12.4 合并）
     models/llm/             llm_model.gguf / mmproj_model.gguf
                             （ModelScope `unsloth/Qwen3.5-4B-GGUF`，可自动切换 HF 镜像）
@@ -18,9 +19,14 @@
 """
 
 import argparse
+import json
 import os
+import re
 import shutil
 import sys
+import tarfile
+import urllib.error
+import urllib.request
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -35,11 +41,16 @@ LLM_DIR = os.path.join(ROOT, "models", "llm")
 TMP_DIR = os.path.join(os.environ.get("TEMP") or ROOT, "ref_forge_runtime")
 
 FFMPEG_EXES = ("ffmpeg.exe", "ffprobe.exe", "ffplay.exe")
+# 官方 zip 候选（BtbN 的 `releases/latest/download/` 与 `releases/download/latest/`
+# 等价，均 302 到 latest 资产的 zip）。
 FFMPEG_URLS = [
     "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/"
     "ffmpeg-master-latest-win64-gpl.zip",
     "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
 ]
+# npmmirror 镜像同类静态 Windows 构建：国内高速（实测 >15MB/s），但资产为 tar.xz
+# 且**无 `latest/` 别名**，需先从索引 JSON 解析最新版本目录再拼 win32-x64-gpl 资产名。
+FFMPEG_NPM_INDEX = "https://registry.npmmirror.com/-/binary/ffmpeg-builds/"
 
 LLAMA_BUILD = "b10991"
 # llama-server.exe 只是极小的启动器，真正的实现与后端在同目录 DLL 中。
@@ -78,25 +89,91 @@ def _llm_urls(remote):
     ]
 
 
-def _extract_flat(zip_path, dest_dir, want=None):
-    """把 zip 内文件平铺解压到 dest_dir（去掉子目录）；want 为 None 表示全部。"""
-    os.makedirs(dest_dir, exist_ok=True)
-    wanted = {name.lower() for name in want} if want else None
+def _extract_zip_flat(archive_path, dest_dir, wanted):
     hits = set()
-    with zipfile.ZipFile(zip_path) as archive:
+    with zipfile.ZipFile(archive_path) as archive:
         for info in archive.infolist():
             if info.is_dir():
                 continue
             name = os.path.basename(info.filename)
-            if not name:
-                continue
-            if wanted is not None and name.lower() not in wanted:
+            if not name or (wanted is not None and name.lower() not in wanted):
                 continue
             with archive.open(info) as source, \
                     open(os.path.join(dest_dir, name), "wb") as target:
                 shutil.copyfileobj(source, target)
             hits.add(name.lower())
     return hits
+
+
+def _extract_tar_flat(archive_path, dest_dir, wanted):
+    hits = set()
+    with tarfile.open(archive_path, "r:*") as archive:
+        for member in archive.getmembers():
+            if not member.isfile():
+                continue
+            name = os.path.basename(member.name)
+            if not name or (wanted is not None and name.lower() not in wanted):
+                continue
+            source = archive.extractfile(member)
+            if source is None:
+                continue
+            with source, open(os.path.join(dest_dir, name), "wb") as target:
+                shutil.copyfileobj(source, target)
+            hits.add(name.lower())
+    return hits
+
+
+def _extract_flat(archive_path, dest_dir, want=None):
+    """把 zip / tar.xz 内文件平铺解压到 dest_dir（去掉子目录）；want=None 表示全部。"""
+    os.makedirs(dest_dir, exist_ok=True)
+    wanted = {name.lower() for name in want} if want else None
+    try:
+        is_tar = tarfile.is_tarfile(archive_path)
+    except OSError:
+        is_tar = False
+    if is_tar:
+        return _extract_tar_flat(archive_path, dest_dir, wanted)
+    return _extract_zip_flat(archive_path, dest_dir, wanted)
+
+
+def _npmmirror_ffmpeg_url():
+    """解析 npmmirror 上最新的 Windows x64 GPL 静态 ffmpeg tar.xz；失败返回 None。"""
+    def fetch(url):
+        request = urllib.request.Request(url, headers={"User-Agent": "RefForge-setup"})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    try:
+        entries = fetch(FFMPEG_NPM_INDEX)
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    versions = []
+    for item in entries:
+        match = re.match(r"^v(\d+)\.(\d+)(?:\.(\d+))?/$", item.get("name", ""))
+        if match:
+            versions.append((tuple(int(x or 0) for x in match.groups()),
+                             item["name"].rstrip("/")))
+    if not versions:
+        return None
+    tag = max(versions)[1]
+    asset = "ffmpeg-%s-win32-x64-gpl.tar.xz" % tag.lstrip("v")
+    try:
+        names = {item.get("name") for item in fetch(FFMPEG_NPM_INDEX + tag + "/")}
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    if asset not in names:
+        return None
+    return FFMPEG_NPM_INDEX + tag + "/" + asset
+
+
+def _ffmpeg_urls():
+    """ffmpeg 候选源：npmmirror（若可解析）在前，其后 BtbN 与 gyan.dev。"""
+    urls = []
+    npmmirror = _npmmirror_ffmpeg_url()
+    if npmmirror:
+        urls.append(npmmirror)
+    urls.extend(FFMPEG_URLS)
+    return urls
 
 
 def ensure_ffmpeg(force=False):
@@ -108,7 +185,7 @@ def ensure_ffmpeg(force=False):
     os.makedirs(TMP_DIR, exist_ok=True)
     archive = os.path.join(TMP_DIR, "ffmpeg.zip")
     if force or not size_ok(archive, 1):
-        if not download_smart(FFMPEG_URLS, archive, group="ffmpeg"):
+        if not download_smart(_ffmpeg_urls(), archive, group="ffmpeg"):
             return False
     print("[unzip] ffmpeg -> %s" % BIN_DIR)
     hits = _extract_flat(archive, BIN_DIR, FFMPEG_EXES)

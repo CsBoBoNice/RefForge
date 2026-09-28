@@ -647,6 +647,16 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
 - 影响：`scripts/setup_env.py`、`requirements.txt`（注释补充可选镜像）、`REQUIREMENTS.md` 12.2、本文件；无新增依赖。
 - 验证：实测 nju / sjtu wheel 探测均返回 206 且速度显著高于官方，官方与阿里云可用、其余三源按预期排除；`python -m compileall scripts` 通过。
 
+#### [P50] ffmpeg 下载加速：新增 npmmirror 源并支持 tar.xz 解压
+- 现象：`download_runtime.py` 下载 ffmpeg 时只有 BtbN 直连 GitHub 与 gyan.dev 两源，国内直连很慢。
+- 候选源核实：
+  1. `https://registry.npmmirror.com/-/binary/ffmpeg-builds/`：**可用但用法特殊**——它是目录索引而非文件；**没有 `latest/` 别名**（404）；资产名为 `ffmpeg-<ver>-win32-x64-gpl.tar.xz`（不是 BtbN 的 `ffmpeg-master-latest-win64-gpl.zip`）。实测 `v8.1.3/ffmpeg-8.1.3-win32-x64-gpl.tar.xz`：140,604,648 字节、sha256 与官方 `.sha256.txt` 一致、下载 16.7MB/s；解压后 `bin/{ffmpeg,ffprobe,ffplay}.exe` 齐全、静态（无 DLL）、`ffmpeg -version` 正常、含 `libx264`。
+  2. `https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip`：可用，与代码原用的 `releases/download/latest/...` **等价**，均 302 → `release-assets.githubusercontent.com`，最终 zip 196,019,840 字节。
+- 关键点：npmmirror 与 GitHub 源的**归档格式不同**（tar.xz vs zip），且 npmmirror 无固定“最新”URL，必须先解析索引。故不能简单把 URL 加进列表，需：① `_npmmirror_ffmpeg_url()` 读索引 JSON、正则出 `v<major>.<minor>[.<patch>]` 目录取版本最大者、再校验该目录确有 `win32-x64-gpl.tar.xz` 资产后拼 URL；② `_extract_flat()` 改为按内容用 `tarfile.is_tarfile` 区分 zip / tar.xz（`_extract_zip_flat` / `_extract_tar_flat`），仍平铺取 `ffmpeg.exe`/`ffprobe.exe`/`ffplay.exe`；③ `_ffmpeg_urls()` 把 npmmirror 放在候选首位，交 `download_smart(group="ffmpeg")` 测速。
+- 实现：`scripts/download_runtime.py` 新增 `import json/re/tarfile/urllib.*`、常量 `FFMPEG_NPM_INDEX`、`_npmmirror_ffmpeg_url()`、`_ffmpeg_urls()`；`_extract_flat()` 拆分并支持 tar.xz；`ensure_ffmpeg()` 改用 `_ffmpeg_urls()`。归档临时名仍为 `ffmpeg.zip`，靠内容识别格式，与来源无关。
+- 影响：`scripts/download_runtime.py`、`REQUIREMENTS.md` 12.2、本文件；无新增依赖（xz 由标准库 `lzma`/`tarfile` 支持）。
+- 验证：`_npmmirror_ffmpeg_url()` 解析出 `.../v8.1.3/ffmpeg-8.1.3-win32-x64-gpl.tar.xz`；`_extract_flat()` 从该 tar.xz 正确解出 3 个 exe；三源按预期返回；`python -m compileall scripts` 通过。
+
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 
 以下条目对应的功能已随 P38 移除，不再实现；此处仅保留一句话结论：
