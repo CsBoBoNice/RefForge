@@ -3,6 +3,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 set "PATH=%~dp0python;%~dp0python\Scripts;%~dp0bin;%PATH%"
+set "OPENCV_FFMPEG_LOGLEVEL=-8"
 
 if "%~1"=="" (
     echo Usage: dev.bat ^<script.py^> [args]  or  dev.bat -m ^<module^> [args]

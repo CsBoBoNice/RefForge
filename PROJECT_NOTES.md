@@ -693,6 +693,16 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
 - 影响：`app/interactive.py`、`readme.md`（快速开始第 8 项步骤 + 备注）、`REQUIREMENTS.md` 3.2、本文件。`main.py` 无需改动（`collect_choices` 直接写回 `cfg`）。
 - 验证：单元驱动 `interactive.collect_choices`（stub `input()` + `enumerate_fn`）输入序列 `1,"","","","2","3","y","1","none"`，输出 `[1/8]..[8/8]`、`separate_tier=balanced`、`cfg.separation.model=balanced`，person/describe/input_mode 等其余选择不变；`compileall` 通过。
 
+#### [P55] 屏蔽 OpenCV/FFmpeg 解码告警（`mmco: unref short failure`）
+- 现象：运行时控制台出现 `[h264 @ 0000016f...] mmco: unref short failure`，用户易误以为出错。
+- 定位：该串出现在 OpenCV 自带的 `opencv_videoio_ffmpeg*.dll`（解码老/不规范 H.264 流时 H.264 解码器的健壮性提示），与 `bin\ffmpeg.exe`、ffprobe 无关（后者要么用 `-v error`、要么输出被捕获丢弃）。
+- 关键点（FFmpeg 源码 `libavcodec/h264_refs.c`）：`av_log(h->avctx, h->short_ref_count ? AV_LOG_ERROR : AV_LOG_DEBUG, "mmco: unref short failure\n")`——当 `short_ref_count != 0` 时它是 **ERROR 级别**。
+- 关键点（OpenCV 源码 `cap_ffmpeg_impl.hpp` `initLogger_()`）：未设 `OPENCV_FFMPEG_LOGLEVEL` / `OPENCV_FFMPEG_DEBUG` 时 OpenCV 只 `av_log_set_level(AV_LOG_ERROR)` 且**不装回调** → 原始 ffmpeg 文本（`[h264 @ ...]`）直写 stderr；设了才会装 `ffmpeg_log_callback`（该回调 `if (level>av_log_get_level()) return;`）。由于该消息是 ERROR，**按级别（如降到 WARNING/ERROR）无法只滤掉它，只能整体静音**。
+- **首版修复为何无效（关键踩坑）**：最初在 `app/io_utils.py` 里 `os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")`，实测**无效**。根因：OpenCV 的 `opencv_videoio_ffmpeg*.dll` 用**自己的 CRT** 调 `getenv` 读取该变量；Python 运行时改 `os.environ`（走 `SetEnvironmentVariableW`）不会同步到该 DLL 的 CRT `_environ`（实测：`os.environ[...]`/`ucrtbase._putenv` 都无效，而**父进程启动前**用 `set` 设置则生效）。同时 `initLogger_()` 在模块加载时读该变量，晚于进程启动即错过。
+- 正确修复：在**启动器 `.bat`** 里、拉起 Python **之前**设置 `set "OPENCV_FFMPEG_LOGLEVEL=-8"`（AV_LOG_QUIET），使子进程的 CRT 在初始化时就能读到。已加入 `启动.bat`、`dev.bat`（覆盖主程序与全部验收脚本）；`.bat` 保持纯 ASCII/CRLF。想调试时可自行设 `OPENCV_FFMPEG_LOGLEVEL=56` 覆盖。`app/io_utils.py` 中那版无效设置已移除。
+- 影响：`启动.bat`、`dev.bat`、`app/io_utils.py`（回退）、`REQUIREMENTS.md` 12.2、本文件。运行期产物不变；失败仍由程序自身日志与 `cap.read()` 返回值体现。
+- 验证：构造会触发解码告警的流——`ffmpeg -i input/video_cn.mp4 -c copy -bsf:v h264_mp4toannexb -f h264 raw.h264` 后删掉首个 slice NAL，得 `raw_no_idr.h264`。实测：父环境**不设**变量时 OpenCV 解码输出 `[h264 @ ...] co located POCs unavailable`（同类告警）；父环境设 `56` 时输出 `[OPENCV:FFMPEG:48] Opening ...`（证明变量生效）；父环境设 `-8` 时**无任何输出**；经 `dev.bat` 运行同一解码脚本亦无输出。`python -m compileall app scripts` 通过。
+
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 
 以下条目对应的功能已随 P38 移除，不再实现；此处仅保留一句话结论：
