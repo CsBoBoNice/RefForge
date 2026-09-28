@@ -1,0 +1,45 @@
+# ============================================================
+# RefForge .gitignore
+# 体积庞大的运行环境 / 离线资产不入库，克隆后用「一键环境搭建.bat」重建。
+# ============================================================
+
+# 包内可移植 Python 运行时（含 site-packages，约 6GB，由 bootstrap 重建）
+/python/
+
+# 全部离线模型（ASR / 人声分离 / 人物 / 动漫 / llama.cpp GGUF，约 15GB）
+/models/
+
+# ffmpeg / ffprobe / ffplay（约 650MB，由 download_runtime 下载）
+/bin/
+
+# llama.cpp 运行时（llama-server.exe + DLL，由 download_runtime 下载）
+/llama_cpp/
+
+# 运行输出与日志
+/output/
+/output_single/
+*.log
+
+# 输入素材与自动生成的整视频字幕（input/ 为本地测试素材，不入库）
+/input/
+
+# 下载 / 安装中间文件
+*.part
+*.tmp
+.downloads/
+
+# Python 缓存与构建产物
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 编辑器 / 操作系统
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store

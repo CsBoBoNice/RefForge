@@ -1,0 +1,49 @@
+# 基础依赖（镜头分割 / 故事图选帧 / 抽帧；主流程仅这些）
+# 注意：禁止安装 opencv-python（会与 opencv-python-headless 冲突）。
+opencv-python-headless==4.10.0.84
+numpy==2.2.6
+Pillow==12.3.0
+scenedetect==0.6.4
+click==8.5.0
+platformdirs==4.11.9
+
+# 语音识别（Qwen3-ASR + Qwen3-ForcedAligner + FunASR 声纹）
+# 注意：torch/torchaudio 为 CUDA 12.8 wheel，需从官方索引安装，例如：
+#   python\python.exe -m pip install torch==2.9.1+cu128 torchaudio==2.9.1+cu128 ^
+#       --index-url https://download.pytorch.org/whl/cu128
+# 或直接运行 scripts\setup_runtime.bat（已内置国内加速源）。
+torch==2.9.1+cu128
+torchaudio==2.9.1+cu128
+funasr==1.4.15
+qwen-asr==0.0.6
+modelscope==1.40.1
+transformers==4.57.6
+librosa==0.11.0
+soundfile==0.14.0
+
+# 人声与背景音乐分离（双轨）
+# 注意：torchvision 必须与 torch 2.9.1+cu128 匹配，从 PyTorch 镜像安装（--no-deps）：
+#   python\python.exe -m pip install torchvision==0.24.1+cu128 --no-deps ^
+#       -f https://mirrors.aliyun.com/pytorch-wheels/cu128
+# audio-separator 先 --no-deps 安装，再单独装下列固定版本依赖，避免其升级 torch。
+audio-separator==0.47.0
+torchvision==0.24.1+cu128
+beartype==0.18.5
+diffq-fixed==0.2.4
+einops==0.8.2
+julius==0.2.8
+ml_collections==1.1.0
+resampy==0.4.3
+rotary-embedding-torch==0.6.5
+samplerate==0.1.0
+absl-py==2.5.0
+ml_dtypes==0.6.0
+onnx-weekly==1.24.0.dev20260914
+onnx2torch-py313==1.6.0
+onnxruntime-gpu==1.23.2
+
+# 人物提取与归类（YOLO11-pose 跟踪 + SCRFD/ArcFace 人脸）
+# 注意：ultralytics 必须 --no-deps 安装，避免其升级/安装 opencv-python、torch；
+#   人脸侧直接使用 onnxruntime 直驱 buffalo_l，不引入 insightface。
+ultralytics==8.3.253
+lap==0.5.13
