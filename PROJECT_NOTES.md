@@ -636,6 +636,16 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
 - 影响：`一键环境搭建.bat`、`下载模型.bat`、`启动.bat`、`dev.bat`、`清理生成内容.bat`、`scripts/setup_runtime.bat`、`scripts/bootstrap_python.ps1`、新增 `.gitattributes`；`AGENTS.md` / `REQUIREMENTS.md` 同步。
 - 验证：确认 6 个 `.bat` 均无 >127 字节（纯 ASCII）、CRLF、无 BOM；提取各 bat 头部 `cmd /c` 运行均无 `not recognized` 且 `@echo off` 生效；`[System.Management.Automation.Language.Parser]::ParseFile` 解析 `bootstrap_python.ps1` 无错误；实际运行 `bootstrap_python.ps1` 退出码 0、中文提示正常。
 
+#### [P49] PyTorch cu128 下载加速：新增南大 / 上交镜像并按真实 wheel 测速选源
+- 现象：安装 torch cu128 时从官方 `download.pytorch.org` 下载很慢（实测 torch-2.9.1+cu128-cp310-win_amd64 约 0.3~0.8MB/s），而 `setup_env.py` 原先固定只从官方索引取 torch/torchaudio、torchvision 只挂阿里云 `-f`。
+- 候选源核实（同一 `torch-2.9.1+cu128-cp310-cp310-win_amd64.whl`）：
+  1. 可用且快：`mirrors.nju.edu.cn/pytorch/whl/cu128`（PEP503，约 4~10MB/s）、`mirror.sjtu.edu.cn/pytorch-wheels/cu128`（PEP503，约 1~10MB/s，会 301 跳转到 s3.jcloud.sjtu）；二者均含 torch/torchaudio/torchvision 的 cp310 win_amd64 wheel。
+  2. 可用但慢：`download.pytorch.org/whl/cu128`（官方，约 0.3~0.8MB/s）；`mirrors.aliyun.com/pytorch-wheels/cu128` 是**扁平 find-links 目录**（子包页 404），只能作 `-f` 兜底，实测约 1MB/s。
+  3. 不可用：`mirrors.aliyun.com/pytorch-wheels/nightly/cu128`（仅 nightly，无稳定 2.9.1）；`mirror.sjtu.edu.cn/astral-wheels/cu128`（仅 flash-attn / vllm 等第三方包，无 torch）；`mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch`（conda 频道，pip 不可用）。
+- 关键坑：**不能用索引导航页测速**——官方 `/torch/` 索引页只有 ~86KB、各镜像都秒开，会把官方误判为最快；必须探测**真实 wheel 的前 1MB**（大文件吞吐才能反映差异）。`probe_speed` 要求样本 ≥64KB，wheel 天然满足。
+- 实现：`scripts/setup_env.py` 新增常量 `NJU_TORCH` / `SJTU_TORCH` 与候选列表 `TORCH_MIRRORS`（官方 + 南大 + 上交，均为 PEP503）、新增 `pick_torch_index()`（按 `sys.version_info` 拼出当前解释器的 wheel 名，对三个索引上同一 wheel 做 1MB Range 探测，`pick_fastest(group="torch")` 选最快）；`install_pip_deps()` 用其替换固定的 `TORCH_INDEX`：torch/torchaudio → `--index-url torch_index --extra-index-url pypi`；torchvision → `--index-url torch_index --extra-index-url pypi -f ALIYUN_TORCH`（阿里云仅兜底）。
+- 影响：`scripts/setup_env.py`、`requirements.txt`（注释补充可选镜像）、`REQUIREMENTS.md` 12.2、本文件；无新增依赖。
+- 验证：实测 nju / sjtu wheel 探测均返回 206 且速度显著高于官方，官方与阿里云可用、其余三源按预期排除；`python -m compileall scripts` 通过。
 
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 

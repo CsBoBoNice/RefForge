@@ -8,10 +8,15 @@ click==8.5.0
 platformdirs==4.11.9
 
 # 语音识别（Qwen3-ASR + Qwen3-ForcedAligner + FunASR 声纹）
-# 注意：torch/torchaudio 为 CUDA 12.8 wheel，需从官方索引安装，例如：
+# 注意：torch/torchaudio 为 CUDA 12.8 wheel，需从 PyTorch 索引安装；国内可换用下列
+# 任一 PEP503 镜像（均含 cp310 win_amd64 wheel，实测比官方源快数倍）：
+#   --index-url https://download.pytorch.org/whl/cu128            (官方)
+#   --index-url https://mirrors.nju.edu.cn/pytorch/whl/cu128      (南大)
+#   --index-url https://mirror.sjtu.edu.cn/pytorch-wheels/cu128   (上交)
+# 例如：
 #   python\python.exe -m pip install torch==2.9.1+cu128 torchaudio==2.9.1+cu128 ^
-#       --index-url https://download.pytorch.org/whl/cu128
-# 或直接运行 scripts\setup_runtime.bat（已内置国内加速源）。
+#       --index-url https://mirrors.nju.edu.cn/pytorch/whl/cu128
+# 或直接运行 scripts\setup_runtime.bat（自动测速选最快源）。
 torch==2.9.1+cu128
 torchaudio==2.9.1+cu128
 funasr==1.4.15
@@ -22,8 +27,10 @@ librosa==0.11.0
 soundfile==0.14.0
 
 # 人声与背景音乐分离（双轨）
-# 注意：torchvision 必须与 torch 2.9.1+cu128 匹配，从 PyTorch 镜像安装（--no-deps）：
+# 注意：torchvision 必须与 torch 2.9.1+cu128 匹配，从 PyTorch 镜像安装（--no-deps）；
+# 南大 / 上交 / 官方索引均含该 wheel，阿里云为扁平 find-links 可作 -f 兜底：
 #   python\python.exe -m pip install torchvision==0.24.1+cu128 --no-deps ^
+#       --index-url https://mirrors.nju.edu.cn/pytorch/whl/cu128 ^
 #       -f https://mirrors.aliyun.com/pytorch-wheels/cu128
 # audio-separator 先 --no-deps 安装，再单独装下列固定版本依赖，避免其升级 torch。
 audio-separator==0.47.0

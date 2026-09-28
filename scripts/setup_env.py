@@ -28,10 +28,17 @@ TSINGHUA = "https://pypi.tuna.tsinghua.edu.cn/simple"
 HUAWEI = "https://repo.huaweicloud.com/repository/pypi/simple"
 ALIYUN = "https://mirrors.aliyun.com/pypi/simple"
 TORCH_INDEX = "https://download.pytorch.org/whl/cu128"
+NJU_TORCH = "https://mirrors.nju.edu.cn/pytorch/whl/cu128"
+SJTU_TORCH = "https://mirror.sjtu.edu.cn/pytorch-wheels/cu128"
 ALIYUN_TORCH = "https://mirrors.aliyun.com/pytorch-wheels/cu128"
 
 # PyPI 候选镜像：实测网速后选最快者作为 `-i`。
 PYPI_MIRRORS = [TSINGHUA, HUAWEI, ALIYUN, "https://pypi.org/simple"]
+
+# PyTorch cu128 候选源（均为 PEP503 索引，同时含 torch/torchaudio/torchvision）：
+# 官方 + 南大 + 上交，按实测「真实 wheel 下载速度」选最快者作为 `--index-url`；
+# 阿里云为扁平 find-links 目录（不能作 index-url），仅作 torchvision 的 `-f` 兜底。
+TORCH_MIRRORS = [TORCH_INDEX, NJU_TORCH, SJTU_TORCH]
 
 
 def pick_index():
@@ -42,6 +49,22 @@ def pick_index():
         if best == probe:
             return mirror
     return TSINGHUA
+
+
+def pick_torch_index():
+    """按实测 wheel 下载速度返回最快的 PyTorch cu128 索引。
+
+    直接探测各源上同一个 torch wheel 的前 1MB（而非索引导航页，避免「索引页快、
+    wheel 慢」的误判；官方源尤其如此），选最快者作为 `--index-url`。
+    """
+    tag = "cp%d%d" % (sys.version_info.major, sys.version_info.minor)
+    wheel = "torch-2.9.1%%2Bcu128-%s-%s-win_amd64.whl" % (tag, tag)
+    probes = [mirror.rstrip("/") + "/" + wheel for mirror in TORCH_MIRRORS]
+    best = pick_fastest(probes, group="torch")
+    for mirror, probe in zip(TORCH_MIRRORS, probes):
+        if best == probe:
+            return mirror
+    return TORCH_INDEX
 
 BASE_PACKAGES = [
     "opencv-python-headless==4.10.0.84",
@@ -116,6 +139,8 @@ def install_pip_deps():
     print("\n== [1/3] 安装 Python 依赖 ==")
     index = pick_index()
     print("[best ] PyPI 镜像：%s" % index)
+    torch_index = pick_torch_index()
+    print("[best ] PyTorch cu128 镜像：%s" % torch_index)
     _pip(["--upgrade", "pip", "setuptools", "wheel", "-i", index])
 
     print("\n-- 基础依赖 --")
@@ -123,13 +148,15 @@ def install_pip_deps():
 
     print("\n-- PyTorch cu128（覆盖 RTX 30/40/50 系）--")
     _pip(["torch==2.9.1+cu128", "torchaudio==2.9.1+cu128",
-          "--index-url", TORCH_INDEX, "--extra-index-url", index])
+          "--index-url", torch_index, "--extra-index-url", index])
 
     print("\n-- 语音识别依赖 --")
     _pip(SPEECH_PACKAGES + ["-i", index])
 
     print("\n-- 人声分离依赖 --")
-    _pip(["torchvision==0.24.1+cu128", "--no-deps", "-f", ALIYUN_TORCH])
+    _pip(["torchvision==0.24.1+cu128", "--no-deps",
+          "--index-url", torch_index, "--extra-index-url", index,
+          "-f", ALIYUN_TORCH])
     _pip(["audio-separator==0.47.0", "--no-deps", "-i", index])
     _pip(SEPARATION_PACKAGES + ["-i", index])
 

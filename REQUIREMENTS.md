@@ -886,6 +886,7 @@ run_phase(jobs, output_root, cfg, logger, debug=False) -> dict
 - 完整版本见 `requirements.txt`；安装脚本 `scripts/setup_env.py`（经根目录 `一键环境搭建.bat` 或 `scripts/setup_runtime.bat` 调用）；一键下载模型 `下载模型.bat`（内部调用 `scripts/download_models.py`、`scripts/download_separation_models.py`、`scripts/download_person_models.py`、`scripts/download_anime_person_models.py`）。
 - **从 GitHub 克隆后的首次环境搭建**：仓库不含运行时与离线资产（见 `.gitignore`：`python/`、`models/`、`bin/`、`llama_cpp/` 均忽略），需联网双击 `一键环境搭建.bat`，依次：`scripts/bootstrap_python.ps1` 引导 embeddable Python 3.10.11 + get-pip → `scripts/setup_env.py` 安装依赖 → `scripts/download_runtime.py` 下载 ffmpeg / llama.cpp / GGUF → 复用 `download_*_models.py` 下载全部模型。
 - **多源测速**：`scripts/download_utils.py` 提供 `probe_speed` / `pick_fastest` / `download_smart`，对每个资产的多个候选源（GitHub 加速镜像、ModelScope、hf-mirror 等）**按实测网速自动选择最快源**，失败自动切换；同组选源在进程内缓存。已存在文件按大小校验跳过，支持 `.part` 断点续传。
+- **PyTorch 源测速**：`setup_env.py` 的 `pick_torch_index()` 在 官方 `download.pytorch.org/whl/cu128`、南大 `mirrors.nju.edu.cn/pytorch/whl/cu128`、上交 `mirror.sjtu.edu.cn/pytorch-wheels/cu128` 三个 PEP503 索引间，**探测同一 torch wheel 的真实下载速度**（而非索引导航页）选最快者作为 `torch`/`torchaudio`/`torchvision` 的 `--index-url`；阿里云 `mirrors.aliyun.com/pytorch-wheels/cu128` 为扁平 find-links，仅作 torchvision 的 `-f` 兜底。实测南大 / 上交约为官方源的数倍。
 - **视频描述主模型**：默认 `unsloth/Qwen3.5-4B-GGUF` 的 `Qwen3.5-4B-UD-Q4_K_XL.gguf` + `mmproj-F16.gguf`（ModelScope 优先，自动切换 HF 镜像），落盘为 `models/llm/llm_model.gguf` 与 `mmproj_model.gguf`。
 
 ### 12.3 启动脚本
