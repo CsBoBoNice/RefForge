@@ -86,8 +86,9 @@ main(argv):
   2. 设置 OpenCV 线程（performance.opencv_threads > 0 时 cv2.setNumThreads）
   3. ensure_dir(output) -> setup_logger(output/run.log)
   4. 收集视频：args.single 或 list_videos(input)
-  4b. --interactive：interactive.collect_choices(...) 一次性收集分割时长 / 是否分割 /
-        输入图像 / 描述片段（枚举结果 precomputed 供后续复用），写回 cfg
+  4b. --interactive：interactive.collect_choices(...) 一次性收集设备 / 分割时长 /
+        是否分割 / 分离强度 / 人物领域 / 是否描述 / 输入图像 / 描述片段
+        （枚举结果 precomputed 供后续复用），写回 cfg
   5. 引擎就绪检查（check.engines）：
        speech.available(cfg)            -> 关闭 asr（缺依赖/模型）
        speech.separation_available(cfg) -> 关闭 separation
@@ -170,17 +171,18 @@ python main.py [--input DIR] [--output DIR] [--config FILE] [--single FILE]
 
 ### 3.2 交互模式（`--interactive`）
 
-双击 `启动.bat`（无参数）时自动追加 `--interactive`；带参数调用则走原 CLI 路径。交互在**引擎检查之前**、收集到视频列表之后进入，**一次性**收集七项选择，全部确认后才开始流程：
+双击 `启动.bat`（无参数）时自动追加 `--interactive`；带参数调用则走原 CLI 路径。交互在**引擎检查之前**、收集到视频列表之后进入，**一次性**收集八项选择，全部确认后才开始流程：
 
 1. **运行设备**：GPU（默认）或 CPU，写回 `separation.device` / `asr.device` / `persons.device`，并把 `describe.gpu_layers` 设为 `999`（GPU）或 `0`（CPU）；
 2. **分割时长**：片段最短 / 最长时长（秒），默认 `1` / `15`，写回 `segmentation.min_segment_sec` / `max_segment_sec`；
 3. **是否执行前半段流程**：`镜头分割 -> 故事图 -> 人声分离 -> 语音识别`，默认执行；选否时 `segmentation.enabled=false`，原视频整体视为单个片段，故事图 / 人声分离 / 语音识别照常在该单片段上执行（等价 `--no-split`）；
-4. **人物提取与归类**：选择模型领域——`1` 动漫（默认，2D/3D）、`2` 真人、`3` 不执行；写回 `persons.enabled` 与 `persons.domain`（等价 `--no-persons` / `--persons-domain`）；
-5. **是否生成视频描述**：默认生成，写回 `describe.enabled`（等价 `--no-describe` 的开关）；选否时**跳过**后续"输入图像 / 描述片段"两步，且不加载描述模型，直接开始流程；
-6. **视频描述输入图像**：故事图 `storyboard`（默认）或抽帧 `frames`，写回 `describe.input_mode`；
-7. **需要生成描述的片段**：通过 `interactive.enumerate_fn`（即 `main._enumerate_source`）预先枚举每个源视频的片段并列出编号，默认全部（回车），可输入编号 / 范围（如 `1,3,5-8`）或 `none` 表示不生成描述。
+4. **人声分离强度**（第 3 步之后新增）：`1` 低 `fast`（默认，最快）/ `2` 中 `balanced`（均衡）/ `3` 高 `best`（质量最好但最慢），写回 `separation.model`；默认项取当前配置 `separation.model`（`dereverb` 等非三档时回落 `fast`）；
+5. **人物提取与归类**：选择模型领域——`1` 动漫（默认，2D/3D）、`2` 真人、`3` 不执行；写回 `persons.enabled` 与 `persons.domain`（等价 `--no-persons` / `--persons-domain`）；
+6. **是否生成视频描述**：默认生成，写回 `describe.enabled`（等价 `--no-describe` 的开关）；选否时**跳过**后续"输入图像 / 描述片段"两步，且不加载描述模型，直接开始流程；
+7. **视频描述输入图像**：故事图 `storyboard`（默认）或抽帧 `frames`，写回 `describe.input_mode`；
+8. **需要生成描述的片段**：通过 `interactive.enumerate_fn`（即 `main._enumerate_source`）预先枚举每个源视频的片段并列出编号，默认全部（回车），可输入编号 / 范围（如 `1,3,5-8`）或 `none` 表示不生成描述。
 
-其中第 7 步的枚举只做镜头分割（不导出片段、不生成故事图），结果缓存在 `Choices.precomputed`；`process_source` 通过 `precomputed` 参数直接复用，**不会重复分割**。选择的片段以 `(源视频路径, shot_id)` 形式记录，在登记完 `describe_jobs` 后按 `shot_id` 过滤；全部 / 不选择分别关闭 / 保留描述阶段。
+其中第 8 步的枚举只做镜头分割（不导出片段、不生成故事图），结果缓存在 `Choices.precomputed`；`process_source` 通过 `precomputed` 参数直接复用，**不会重复分割**。选择的片段以 `(源视频路径, shot_id)` 形式记录，在登记完 `describe_jobs` 后按 `shot_id` 过滤；全部 / 不选择分别关闭 / 保留描述阶段。
 
 实现位于 `app/interactive.py`：`Choices` 保存选择结果，`collect_choices(videos, cfg, logger, enumerate_fn)` 负责交互与校验（非法输入重问，EOF 时回落默认值）。
 
@@ -927,7 +929,7 @@ pause
 7. 有音轨的源视频生成 `audio/` 三轨 + `separation.json`；ASR 使用 `vocals.wav`；无音轨跳过不报错。
 8. 视频描述生成 `frames/`、`video_prompt_zh.txt`（六段式中文）、`detailed/video_prompt.json`；引擎缺失时整段跳过并告警。
 9. 处理过程不崩溃；单片段异常不影响其余片段。
-10. `--interactive`：一次性收集分割时长 / 是否分割 / 是否人物提取 / 输入图像 / 描述片段；选否分割时原视频整体作为单片段且故事图 / 分离 / ASR 照常；按编号选择时仅对选中片段生成描述，选 `none` 时不加载描述模型；交互枚举的片段被复用、不重复分割。
+10. `--interactive`：一次性收集运行设备 / 分割时长 / 是否分割 / 人声分离强度 / 人物领域 / 是否描述 / 输入图像 / 描述片段；选否分割时原视频整体作为单片段且故事图 / 分离 / ASR 照常；按编号选择时仅对选中片段生成描述，选 `none` 时不加载描述模型；交互枚举的片段被复用、不重复分割。
 11. 人物提取（见第十四节）：每源视频产出 `persons/metadata.json` + `person_XXX/` + `unknown/`；图片为原帧矩形、原分辨率、`person_XXX_f%07d.jpg` 可溯源；`max_per_person` 截断、近重复已去重；引擎缺失 / 单源异常跳过并告警；新增依赖不改变原有阶段产物与环境。
 
 ### 13.2 验收脚本

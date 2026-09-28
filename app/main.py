@@ -102,8 +102,8 @@ def parse_args(argv=None):
     parser.add_argument("--opencv-threads", type=int, default=None,
                         help="OpenCV 内部线程数；0/未指定=保持默认")
     parser.add_argument("--interactive", action="store_true",
-                        help="交互式选择分割时长 / 是否分割 / 输入图像 / 描述片段"
-                             "（双击启动默认启用）")
+                        help="交互式选择分割时长 / 是否分割 / 分离强度 / 人物领域 /"
+                             " 输入图像 / 描述片段（双击启动默认启用）")
     return parser.parse_args(argv)
 
 

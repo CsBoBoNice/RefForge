@@ -1,12 +1,17 @@
 """交互式配置：双击 `启动.bat` 时一次性收集运行参数。
 
-流程（全部选择完成后才开始处理，避免每执行一个阶段问一次）：
+流程（全部选择完成后才开始处理，避免每执行一个阶段问一次，共 8 项）：
 
-1. 分割时长：片段最短 / 最长时长（默认 1s / 15s）；
-2. 是否执行「镜头分割 -> 故事图 -> 人声分离 -> 语音识别」；不执行时原视频整体
+1. 运行设备：GPU（默认）或 CPU；
+2. 分割时长：片段最短 / 最长时长（默认 1s / 15s）；
+3. 是否执行「镜头分割 -> 故事图 -> 人声分离 -> 语音识别」；不执行时原视频整体
    视为单个片段，仍继续生成故事图 / 人声分离 / 语音识别（等价于 `--no-split`）；
-3. 视频描述输入图像：故事图识别（`storyboard`）或帧识别（`frames`）；
-4. 需要生成视频描述的片段：默认全部，可按编号 / 范围选择，或选择不生成。
+4. 人声分离强度：低（`fast`）/ 中（`balanced`）/ 高（`best`），写回
+   `separation.model`；
+5. 人物提取与归类：动漫（默认）/ 真人 / 不执行；
+6. 是否生成视频描述；不生成时跳过后续两步；
+7. 视频描述输入图像：故事图识别（`storyboard`）或帧识别（`frames`）；
+8. 需要生成视频描述的片段：默认全部，可按编号 / 范围选择，或选择不生成。
 
 本模块只负责交互收集与校验，并把结果写回 `cfg`；片段枚举通过外部传入的
 ``enumerate_fn(path)`` 完成，避免与 `main.py` 的编排逻辑相互导入。
@@ -28,6 +33,7 @@ class Choices(object):
         self.min_sec = DEFAULT_MIN_SEC
         self.max_sec = DEFAULT_MAX_SEC
         self.split = True
+        self.separate_tier = "fast"
         self.persons = True
         self.persons_domain = "anime"
         self.describe = True
@@ -167,17 +173,17 @@ def _entry_for(seg, path):
 
 
 def collect_choices(videos, cfg, logger, enumerate_fn):
-    """交互收集 7 项选择，写回 cfg，并返回 `Choices`。"""
+    """交互收集 8 项选择，写回 cfg，并返回 `Choices`。"""
     choices = Choices()
     if not videos:
         return choices
 
     print(BANNER)
-    print("交互配置：请依次完成 7 项选择，全部完成后自动执行后续流程。")
+    print("交互配置：请依次完成 8 项选择，全部完成后自动执行后续流程。")
     print(BANNER)
 
     # 第一步：运行设备
-    print("[1/7] 运行设备（GPU 更快；CPU 兼容性更好）")
+    print("[1/8] 运行设备（GPU 更快；CPU 兼容性更好）")
     print("  1) GPU（默认）")
     print("  2) CPU")
     device = _prompt_choice("  选择", {"1": "gpu", "2": "cpu"}, "1")
@@ -188,7 +194,7 @@ def collect_choices(videos, cfg, logger, enumerate_fn):
     cfg["describe"]["gpu_layers"] = 999 if device == "gpu" else 0
 
     # 第二步：分割时长
-    print("[2/7] 分割时长（片段时长范围，单位：秒）")
+    print("[2/8] 分割时长（片段时长范围，单位：秒）")
     choices.min_sec = _prompt_float("  最短时长", DEFAULT_MIN_SEC, 0.1, None)
     choices.max_sec = _prompt_float("  最长时长", DEFAULT_MAX_SEC,
                                     choices.min_sec, None)
@@ -198,15 +204,27 @@ def collect_choices(videos, cfg, logger, enumerate_fn):
     cfg["segmentation"]["max_segment_sec"] = float(choices.max_sec)
 
     # 第三步：是否执行前半段流程
-    print("[3/7] 是否执行：镜头分割 -> 故事图 -> 人声分离 -> 语音识别")
+    print("[3/8] 是否执行：镜头分割 -> 故事图 -> 人声分离 -> 语音识别")
     choices.split = _prompt_yes_no("  执行", True)
     if not choices.split:
         print("  已选择不执行分割：原视频将整体作为单个片段，继续生成故事图 /"
               " 人声分离 / 语音识别。")
     cfg["segmentation"]["enabled"] = bool(choices.split)
 
-    # 第四步：人物提取与归类的模型选型
-    print("[4/7] 人物提取与归类（整片，在各阶段之后）")
+    # 第四步：人声分离强度
+    print("[4/8] 人声分离强度（逐源视频整轨分离人声 / 伴奏）")
+    print("  1) 低（fast，最快，UVR-MDX-Net）")
+    print("  2) 中（balanced，质量与速度均衡，BS-Roformer）")
+    print("  3) 高（best，质量最好但最慢，Mel-Band Roformer）")
+    tier_default = {"fast": "1", "balanced": "2",
+                    "best": "3"}.get(cfg["separation"].get("model"), "1")
+    tier = _prompt_choice(
+        "  选择", {"1": "fast", "2": "balanced", "3": "best"}, tier_default)
+    choices.separate_tier = tier
+    cfg["separation"]["model"] = tier
+
+    # 第五步：人物提取与归类的模型选型
+    print("[5/8] 人物提取与归类（整片，在各阶段之后）")
     print("  1) 动漫模型（默认，2D/3D 动画，CLIP 嵌入 + ByteTrack）")
     print("  2) 真人模型（写实视频）")
     print("  3) 不执行")
@@ -217,8 +235,8 @@ def collect_choices(videos, cfg, logger, enumerate_fn):
     cfg["persons"]["enabled"] = bool(choices.persons)
     cfg["persons"]["domain"] = choices.persons_domain
 
-    # 第五步：是否生成视频描述（默认生成）
-    print("[5/7] 是否生成视频描述（逐片段中文 prompt）")
+    # 第六步：是否生成视频描述（默认生成）
+    print("[6/8] 是否生成视频描述（逐片段中文 prompt）")
     choices.describe = _prompt_yes_no("  生成", True)
     cfg["describe"]["enabled"] = bool(choices.describe)
     if not choices.describe:
@@ -228,22 +246,22 @@ def collect_choices(videos, cfg, logger, enumerate_fn):
         choices.describe_none = True
         print(BANNER)
         logger.info(
-            "interactive: device=%s split=%s persons=%s/%s duration=[%ss, %ss] "
-            "describe=none", choices.device, choices.split, choices.persons,
-            choices.persons_domain, _fmt(choices.min_sec),
-            _fmt(choices.max_sec))
+            "interactive: device=%s split=%s separation=%s persons=%s/%s "
+            "duration=[%ss, %ss] describe=none", choices.device, choices.split,
+            choices.separate_tier, choices.persons, choices.persons_domain,
+            _fmt(choices.min_sec), _fmt(choices.max_sec))
         return choices
 
-    # 第六步：视频描述输入图像
-    print("[6/7] 视频描述使用的输入图像")
+    # 第七步：视频描述输入图像
+    print("[7/8] 视频描述使用的输入图像")
     print("  1) 故事图识别（storyboard，默认）")
     print("  2) 帧识别（frames）")
     mode = _prompt_choice("  选择", {"1": "storyboard", "2": "frames"}, "1")
     choices.input_mode = mode
     cfg["describe"]["input_mode"] = mode
 
-    # 第七步：枚举片段并选择需要生成描述的片段
-    print("[7/7] 选择需要生成视频描述的片段")
+    # 第八步：枚举片段并选择需要生成描述的片段
+    print("[8/8] 选择需要生成视频描述的片段")
     entries = []
     for path in videos:
         data = enumerate_fn(path)
@@ -279,9 +297,10 @@ def collect_choices(videos, cfg, logger, enumerate_fn):
 
     print(BANNER)
     logger.info(
-        "interactive: device=%s split=%s persons=%s/%s duration=[%ss, %ss] "
-        "input_mode=%s describe=%s", choices.device, choices.split,
-        choices.persons, choices.persons_domain, _fmt(choices.min_sec),
+        "interactive: device=%s split=%s separation=%s persons=%s/%s "
+        "duration=[%ss, %ss] input_mode=%s describe=%s", choices.device,
+        choices.split, choices.separate_tier, choices.persons,
+        choices.persons_domain, _fmt(choices.min_sec),
         _fmt(choices.max_sec), choices.input_mode,
         "none" if choices.describe_none
         else ("all" if choices.describe_all else "selected"))

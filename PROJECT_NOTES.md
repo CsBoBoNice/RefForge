@@ -120,9 +120,9 @@ ref_forge/
 
 ```text
 input/*.mp4（多镜头长视频）
-  -> --interactive（双击 启动.bat 默认）：一次性收集 分割时长 / 是否分割 /
-       输入图像 / 描述片段；预枚举片段仅做分割，结果 precomputed 复用，
-       按 (源视频, shot_id) 过滤 describe_jobs
+  -> --interactive（双击 启动.bat 默认）：一次性收集 设备 / 分割时长 / 是否分割 /
+       分离强度 / 人物领域 / 输入图像 / 描述片段；预枚举片段仅做分割，
+       结果 precomputed 复用，按 (源视频, shot_id) 过滤 describe_jobs
   -> segmentation.detect_shot_cuts          # PySceneDetect AdaptiveDetector（尺寸归一化流）
   -> segmentation.build_segments            # 长镜头再分割 + 短镜头合并 + 迭代校验
   -> segment_export.export_segment          # ffmpeg copy/reencode -> shot_XXXX/seg_XXXX.mp4
@@ -685,6 +685,13 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
   - 设计要点：按类别汇总预览（本项目 `python/Lib/site-packages` 有约 2900 个 `__pycache__`，逐条打印会刷屏，故每类只列数量/大小，条目 ≤8 时才展开）；`os.walk` 时对 `__pycache__`/`.downloads`/junk/HF 缓存**不再下钻**，避免收集其子孙；`_dedupe()` 去掉被父目录覆盖的子项；`_path_size()` 统计释放体积。
 - 影响：新增 `scripts/clean_cache.py`、`一键删除缓存.bat`；`scripts/setup_env.py`；`AGENTS.md`、`readme.md`、`REQUIREMENTS.md` 12.2、本文件。
 - 验证：dry-run 报出 `pycache 2908 项 236.21MB`、`hf 3 项`、`temp 4 项 224.82MB`，共 2915 项 / 461.03MB；`--yes` 执行 0 失败并释放 461MB，随后 `python -m compileall app scripts`、`python -c "import sys"` 正常（site-packages 缓存按需重建）；`setup_env.py --skip-pip --skip-runtime --skip-models` 正确创建并打印 `input/`、`output/`；`一键删除缓存.bat` 校验为纯 ASCII、CRLF、无 BOM。
+
+#### [P54] 交互模式新增「人声分离强度」选择（第 3 步之后）
+- 需求：在交互第 3 步（是否执行镜头分割 -> 故事图 -> 人声分离 -> 语音识别）之后，增加人声分离模型（强度）选择，提供低 / 中 / 高 3 档。
+- 实现：`app/interactive.py` 交互由 7 项扩为 8 项——第 4 步打印三档并写回 `cfg.separation.model`：`1` 低 = `fast`（最快，UVR-MDX-Net）、`2` 中 = `balanced`（均衡，BS-Roformer）、`3` 高 = `best`（质量最好但最慢，Mel-Band Roformer）；默认项取当前 `cfg.separation.model` 对应编号（非三档如 `dereverb` 时回落 `1`/`fast`）。`Choices` 新增 `separate_tier` 字段，原先的第 4~7 步顺延为第 5~8 步，两处 `logger.info` 增记 `separation=<tier>`。
+- 说明：`dereverb`（去混响）是特殊用途档而非强度档，不在三选之内，仍可经 `--separate-model dereverb` / `config.json` 使用；分离档位模型需已下载（`下载模型.bat` / `download_separation_models.py`），缺失时该阶段按既有逻辑关闭并告警。
+- 影响：`app/interactive.py`、`readme.md`（快速开始第 8 项步骤 + 备注）、`REQUIREMENTS.md` 3.2、本文件。`main.py` 无需改动（`collect_choices` 直接写回 `cfg`）。
+- 验证：单元驱动 `interactive.collect_choices`（stub `input()` + `enumerate_fn`）输入序列 `1,"","","","2","3","y","1","none"`，输出 `[1/8]..[8/8]`、`separate_tier=balanced`、`cfg.separation.model=balanced`，person/describe/input_mode 等其余选择不变；`compileall` 通过。
 
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 
