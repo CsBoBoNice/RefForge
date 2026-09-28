@@ -906,7 +906,7 @@ pause
 
 无参数双击 `启动.bat` 时进入交互模式（`--interactive`）；带参数时按原 CLI 执行。`dev.bat` 同样设置包内环境后执行任意 python 命令。embeddable 通过 `._pth` 已把 `app/` 与 site-packages 加入 `sys.path`，故不设置 `PYTHONHOME` / `PYTHONPATH`。
 
-**脚本编码/换行（强制，见 `PROJECT_NOTES.md` P48）**：所有 `.bat` 保存为 **GBK(CP936)、CRLF、无 BOM**（中文 Windows 下 cmd 按 CP936 读取批处理；`chcp 65001` 仅切换控制台输出代码页，配合 `PYTHONUTF8=1` 让 Python 输出 UTF-8；加 UTF-8 BOM 会使 `@echo off` 失效）；`scripts/bootstrap_python.ps1` 保存为 **UTF-8 带 BOM、CRLF**，供 PowerShell 5.1 正确解码中文。修改脚本时须保持该编码与换行。
+**脚本编码/换行（强制，见 `PROJECT_NOTES.md` P48）**：所有 `.bat` **只允许 ASCII 字符（不含中文）**，保存为 **CRLF、无 BOM**。cmd.exe 按系统 ANSI 代码页读取 `.bat`（与 `chcp` 无关），文件内的非 ASCII 会解析错乱或乱码（UTF-8 解析失败；GBK 在 `chcp 65001` 下显示为乱码），故 `.bat` 内一律用英文提示；`chcp 65001` 仅用于让后续 Python（`PYTHONUTF8=1`）与 PowerShell 的中文输出正确显示。`scripts/bootstrap_python.ps1` 保存为 **UTF-8 带 BOM、CRLF**，供 PowerShell 5.1 正确解码中文。修改脚本时须保持该编码与换行。
 
 ---
 

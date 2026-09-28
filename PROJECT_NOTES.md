@@ -627,12 +627,14 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
   1. `一键环境搭建.bat`、`scripts/setup_runtime.bat`、`scripts/bootstrap_python.ps1` 为 **LF 换行**；cmd.exe 只能可靠解析 CRLF 批处理，LF 会使行被错误连接/拆断（`@echo off` 失效、命令回显、`echo` 行错位）。
   2. 批处理为 **UTF-8 无 BOM**，但 cmd.exe 读取批处理时按**当前控制台代码页**解码，中文 Windows 为 CP936/GBK；`chcp 65001` 在文件开始被读取之后才执行，故含中文的 `echo` 行被按 GBK 误解码而错位。给 `.bat` 加 UTF-8 BOM 也**无效**（实测 cmd 不剥离 BOM，首行变成 `?@echo off`，`@echo off` 不生效）。`下载模型.bat` 等同样存在此隐患（仅 banner 报错、功能未受影响而长期未被发现）。
   3. `.ps1` 为 UTF-8 无 BOM，PowerShell 5.1 默认按 ANSI(CP936) 解码脚本，中文乱码会破坏引号配对，导致解析期报错。
-- 解决办法（约定）：
-  1. **`.bat` 一律存为 GBK(CP936)、CRLF 换行、不加 BOM**；保留 `chcp 65001`（配合 `PYTHONUTF8=1` 让 Python 输出 UTF-8）。中文 Windows（ACP=936）双击即正确解析与显示。
-  2. **`.ps1` 一律存为 UTF-8 **带 BOM**、CRLF 换行**，PowerShell 5.1 据此正确解码中文。
-  3. 改脚本用编辑工具或 `[System.IO.File]::WriteAllBytes` + 显式编码，禁止用会改编码的文本 cmdlet（见 P23）。
-- 影响：`一键环境搭建.bat`、`下载模型.bat`、`启动.bat`、`dev.bat`、`清理生成内容.bat`、`scripts/setup_runtime.bat`、`scripts/bootstrap_python.ps1`；`AGENTS.md` / `REQUIREMENTS.md` 同步。
-- 验证：将各 bat 头部（含全部中文 banner）提取后 `cmd /c` 运行，均无 `not recognized` 且 `@echo off` 生效（无命令回显）；`[System.Management.Automation.Language.Parser]::ParseFile` 解析 `bootstrap_python.ps1` 无错误；确认无 BOM、CR 数 = LF 数。
+- 二次踩坑（改用 GBK 后 banner 仍是乱码）：把 `.bat` 存成 GBK 后，`@echo off` 与解析都正常了，但 `chcp 65001` 下 banner 仍乱码（显示为 `һ�������`，即 GBK 字节被按 UTF-8 渲染）。实测结论：**cmd.exe 始终按系统 ANSI 代码页（本机 936）读取/解析 `.bat`，`chcp` 不改变该行为；而 `echo` 输出的是文件里的原始字节，由当前控制台代码页渲染**。因此 `.bat` 内任何非 ASCII 都无解：UTF-8 → 解析错乱；GBK → `chcp 65001` 下显示乱码。此外给 `.bat` 加 UTF-8 BOM 也无效（cmd 不剥离 BOM，首行变 `?@echo off`）。
+- 解决办法（约定，最终）：
+  1. **`.bat` 只允许 ASCII 字符（不得含中文），CRLF 换行、无 BOM**；面向用户的中文提示一律交给 `.py` / `.ps1` 打印（它们能正确处理编码）。保留 `chcp 65001`，只为让后续 `PYTHONUTF8=1` 的 Python 与 PowerShell 的中文输出正确显示。
+  2. **`.ps1` 存为 UTF-8 **带 BOM**、CRLF 换行**，PowerShell 5.1 据此正确解码中文。
+  3. `.gitattributes` 固定 `*.bat` / `*.ps1` 为 CRLF，避免换机器 clone 后被改成 LF 再次失效。
+  4. 改脚本用编辑工具或 `[System.IO.File]::WriteAllBytes` + 显式编码，禁止用会改编码的文本 cmdlet（见 P23）。
+- 影响：`一键环境搭建.bat`、`下载模型.bat`、`启动.bat`、`dev.bat`、`清理生成内容.bat`、`scripts/setup_runtime.bat`、`scripts/bootstrap_python.ps1`、新增 `.gitattributes`；`AGENTS.md` / `REQUIREMENTS.md` 同步。
+- 验证：确认 6 个 `.bat` 均无 >127 字节（纯 ASCII）、CRLF、无 BOM；提取各 bat 头部 `cmd /c` 运行均无 `not recognized` 且 `@echo off` 生效；`[System.Management.Automation.Language.Parser]::ParseFile` 解析 `bootstrap_python.ps1` 无错误；实际运行 `bootstrap_python.ps1` 退出码 0、中文提示正常。
 
 
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
