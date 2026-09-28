@@ -129,8 +129,12 @@ def download(url, dest, expected=0, timeout=120):
     return True
 
 
-def download_smart(urls, dest, expected=0, group=None, timeout=120):
-    """按实测网速选择最快源下载；失败自动切换其余源。"""
+def download_smart(urls, dest, expected=0, group=None, timeout=120, verify=None):
+    """按实测网速选择最快源下载；失败或 verify 校验不通过自动切换其余源。
+
+    verify：可选回调，接收已下载完成的 dest 路径，返回 True 表示内容有效
+    （例如归档未被截断）；返回 False 视为该源失败，删除文件并换下一个源。
+    """
     urls = list(urls)
     if not urls:
         return False
@@ -140,14 +144,16 @@ def download_smart(urls, dest, expected=0, group=None, timeout=120):
         print("[try ] %s" % url)
         try:
             download(url, dest, expected, timeout)
+            if verify is not None and not verify(dest):
+                raise RuntimeError("verify failed")
             print("[ok  ] %s" % os.path.basename(dest))
             return True
         except (urllib.error.URLError, RuntimeError, OSError) as exc:
             print("       %s -> %s" % (url, exc))
             if group:
                 _FASTEST.pop(group, None)
-            part = dest + ".part"
-            if os.path.isfile(part) and os.path.getsize(part) > 0:
-                os.remove(part)
+            for path in (dest, dest + ".part"):
+                if os.path.isfile(path):
+                    os.remove(path)
     print("[fail] %s" % os.path.basename(dest))
     return False

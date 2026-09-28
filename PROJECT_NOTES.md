@@ -654,8 +654,13 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
   2. `https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip`：可用，与代码原用的 `releases/download/latest/...` **等价**，均 302 → `release-assets.githubusercontent.com`，最终 zip 196,019,840 字节。
 - 关键点：npmmirror 与 GitHub 源的**归档格式不同**（tar.xz vs zip），且 npmmirror 无固定“最新”URL，必须先解析索引。故不能简单把 URL 加进列表，需：① `_npmmirror_ffmpeg_url()` 读索引 JSON、正则出 `v<major>.<minor>[.<patch>]` 目录取版本最大者、再校验该目录确有 `win32-x64-gpl.tar.xz` 资产后拼 URL；② `_extract_flat()` 改为按内容用 `tarfile.is_tarfile` 区分 zip / tar.xz（`_extract_zip_flat` / `_extract_tar_flat`），仍平铺取 `ffmpeg.exe`/`ffprobe.exe`/`ffplay.exe`；③ `_ffmpeg_urls()` 把 npmmirror 放在候选首位，交 `download_smart(group="ffmpeg")` 测速。
 - 实现：`scripts/download_runtime.py` 新增 `import json/re/tarfile/urllib.*`、常量 `FFMPEG_NPM_INDEX`、`_npmmirror_ffmpeg_url()`、`_ffmpeg_urls()`；`_extract_flat()` 拆分并支持 tar.xz；`ensure_ffmpeg()` 改用 `_ffmpeg_urls()`。归档临时名仍为 `ffmpeg.zip`，靠内容识别格式，与来源无关。
-- 影响：`scripts/download_runtime.py`、`REQUIREMENTS.md` 12.2、本文件；无新增依赖（xz 由标准库 `lzma`/`tarfile` 支持）。
-- 验证：`_npmmirror_ffmpeg_url()` 解析出 `.../v8.1.3/ffmpeg-8.1.3-win32-x64-gpl.tar.xz`；`_extract_flat()` 从该 tar.xz 正确解出 3 个 exe；三源按预期返回；`python -m compileall scripts` 通过。
+- **踩坑（首版即现）**：BtbN zip 下载中途断流，只拿到 114,768,076 / 196,019,840 字节即被 `download_smart` 判为成功（`download_smart` 传 `expected=0` 时 `download()` 不做完整性校验），随后 `_extract_flat` 按内容识别为 zip 却在 `archive.open()` 抛 `BadZipFile: Bad magic number`；且坏包留在 `%TEMP%\ref_forge_runtime\ffmpeg.zip`，下次运行因 `size_ok(archive,1)` 命中而**跳过重下、反复失败**。
+- 修复：
+  1. `download_utils.download_smart()` 新增可选 `verify` 回调：`download()` 完成后调用 `verify(dest)`，返回 False 视为该源失败，删除 `dest` 与 `.part` 并切换下一源。
+  2. `download_runtime.py` 新增 `_archive_ok(path)`：zip 用 `ZipFile.testzip()`、tar.xz 用完整遍历成员读取，能识别截断；`ensure_ffmpeg()` 用它作①缓存判定（`force or not _archive_ok(archive)`，不再用 `size_ok` 误信坏包）与②`download_smart(..., verify=_archive_ok)`；解压再包一层异常兜底并删除坏包。
+  3. 抽 `_is_tar(path)` 统一 `tarfile.is_tarfile` 的异常处理。
+- 影响：`scripts/download_runtime.py`、`scripts/download_utils.py`、`REQUIREMENTS.md` 12.2、本文件；无新增依赖（xz 由标准库 `lzma`/`tarfile` 支持）。
+- 验证：`_archive_ok(截断的 114MB BtbN zip)=False`；`download_runtime.py --only ffmpeg --force` 实测选 npmmirror（2.58MB/s）、下载 140.6MB、`_archive_ok` 通过、解出 `bin/{ffmpeg,ffprobe,ffplay}.exe`，`ffmpeg/ffprobe -version` 正常（n8.1.3）；`_npmmirror_ffmpeg_url()` 解析出 `.../v8.1.3/ffmpeg-8.1.3-win32-x64-gpl.tar.xz`；三源按预期返回；`python -m compileall app scripts` 通过。
 
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 

@@ -127,13 +127,37 @@ def _extract_flat(archive_path, dest_dir, want=None):
     """把 zip / tar.xz 内文件平铺解压到 dest_dir（去掉子目录）；want=None 表示全部。"""
     os.makedirs(dest_dir, exist_ok=True)
     wanted = {name.lower() for name in want} if want else None
-    try:
-        is_tar = tarfile.is_tarfile(archive_path)
-    except OSError:
-        is_tar = False
-    if is_tar:
+    if _is_tar(archive_path):
         return _extract_tar_flat(archive_path, dest_dir, wanted)
     return _extract_zip_flat(archive_path, dest_dir, wanted)
+
+
+def _is_tar(archive_path):
+    try:
+        return tarfile.is_tarfile(archive_path)
+    except (tarfile.TarError, OSError):
+        return False
+
+
+def _archive_ok(archive_path):
+    """校验 zip / tar.xz 归档完整可读（能检测下载被网络截断）。"""
+    if not os.path.isfile(archive_path):
+        return False
+    try:
+        if _is_tar(archive_path):
+            with tarfile.open(archive_path, "r:*") as archive:
+                for member in archive.getmembers():
+                    if not member.isfile():
+                        continue
+                    source = archive.extractfile(member)
+                    if source is not None:
+                        while source.read(1 << 20):
+                            pass
+            return True
+        with zipfile.ZipFile(archive_path) as archive:
+            return archive.testzip() is None
+    except (tarfile.TarError, zipfile.BadZipFile, EOFError, OSError):
+        return False
 
 
 def _npmmirror_ffmpeg_url():
@@ -184,11 +208,18 @@ def ensure_ffmpeg(force=False):
         return True
     os.makedirs(TMP_DIR, exist_ok=True)
     archive = os.path.join(TMP_DIR, "ffmpeg.zip")
-    if force or not size_ok(archive, 1):
-        if not download_smart(_ffmpeg_urls(), archive, group="ffmpeg"):
+    if force or not _archive_ok(archive):
+        if not download_smart(_ffmpeg_urls(), archive, group="ffmpeg",
+                              verify=_archive_ok):
             return False
     print("[unzip] ffmpeg -> %s" % BIN_DIR)
-    hits = _extract_flat(archive, BIN_DIR, FFMPEG_EXES)
+    try:
+        hits = _extract_flat(archive, BIN_DIR, FFMPEG_EXES)
+    except (tarfile.TarError, zipfile.BadZipFile, EOFError, OSError) as exc:
+        print("[fail] ffmpeg 解压失败：%s" % exc)
+        if os.path.isfile(archive):
+            os.remove(archive)
+        return False
     os.remove(archive)
     missing = [name for name in FFMPEG_EXES if name.lower() not in hits]
     if missing:
