@@ -93,7 +93,7 @@ def download_person(force=False):
         print("[skip] %s" % PERSON_SUBDIR)
         return True
     patterns = ["%s/%s" % (PERSON_SUBDIR, name) for name in
-                MODEL_FILES + ["model_artifacts.json"]]
+                MODEL_FILES + ("model_artifacts.json",)]
     if not _snapshot(PERSON_REPO, PERSON_DIR, patterns):
         return False
     if not _present(os.path.join(sub, "model.onnx")):
@@ -109,7 +109,7 @@ def download_face(force=False):
         print("[skip] %s" % FACE_SUBDIR)
         return True
     patterns = ["%s/%s" % (FACE_SUBDIR, name) for name in
-                MODEL_FILES + ["model_artifacts.json"]]
+                MODEL_FILES + ("model_artifacts.json",)]
     if not _snapshot(FACE_REPO, FACE_DIR, patterns):
         return False
     if not _present(os.path.join(sub, "model.onnx")):

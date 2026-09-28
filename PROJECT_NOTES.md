@@ -669,6 +669,13 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
 - 影响：`scripts/download_separation_models.py`、`scripts/download_person_models.py`、`scripts/download_anime_person_models.py`、`REQUIREMENTS.md` 12.2、本文件。
 - 验证：三个脚本 `--help` 均以包内 Python（CWD=包根，与 setup 调用方式一致）运行退出码 0、不再报 ModuleNotFoundError；`python -m compileall scripts` 通过。
 
+#### [P52] 动漫模型下载 TypeError：tuple + list 拼接
+- 现象：`一键环境搭建.bat` 走到「动漫人物提取」时，`download_anime_person_models.py:96` 抛 `TypeError: can only concatenate tuple (not "list") to tuple`，setup 中止。
+- 原因：`MODEL_FILES` 定义为元组 `("model.onnx", "labels.json", "threshold.json")`，而 `download_person()` / `download_face()` 里写的是 `MODEL_FILES + ["model_artifacts.json"]`（元组 + 列表），Python 不允许。
+- 修复：两处改为元组拼接 `MODEL_FILES + ("model_artifacts.json",)`。
+- 影响：`scripts/download_anime_person_models.py`、本文件。
+- 验证：用桩替换 `_snapshot` 跑通 `download_person(force=True)` / `download_face(force=True)`（不联网），生成 patterns 为 `person_detect_v1.1_m/{model.onnx,labels.json,threshold.json,model_artifacts.json}` 与 `face_detect_v1.4_s/...`，均返回 True；`compileall` 通过。验证过程在 `models/person/anime/` 写的 1 字节桩文件已清理。
+
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 
 以下条目对应的功能已随 P38 移除，不再实现；此处仅保留一句话结论：
