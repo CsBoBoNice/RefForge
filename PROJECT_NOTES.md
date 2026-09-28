@@ -676,6 +676,16 @@ collect_choices(videos, cfg, logger, enumerate_fn) -> Choices   # 交互收集�
 - 影响：`scripts/download_anime_person_models.py`、本文件。
 - 验证：用桩替换 `_snapshot` 跑通 `download_person(force=True)` / `download_face(force=True)`（不联网），生成 patterns 为 `person_detect_v1.1_m/{model.onnx,labels.json,threshold.json,model_artifacts.json}` 与 `face_detect_v1.4_s/...`，均返回 True；`compileall` 通过。验证过程在 `models/person/anime/` 写的 1 字节桩文件已清理。
 
+#### [P53] 环境搭建后创建用户目录 + 一键删除缓存（打包拷贝用）
+- 需求：1) 环境搭建完成后自动创建 `input/` 与 `output/` 目录，方便首次使用；2) 提供「一键删除缓存」，便于把整个目录压缩拷贝到其他设备。
+- 实现 1（用户目录）：`setup_env.py` 新增 `ensure_user_dirs()`，在依赖安装 / 资产 / 模型全部结束后 `os.makedirs(ROOT/input|output, exist_ok=True)`，两个入口（`一键环境搭建.bat`、`scripts\setup_runtime.bat`）都会走到；即使全部 `--skip-*` 也会执行。
+- 实现 2（删缓存）：新增 `scripts/clean_cache.py` 与根目录 `一键删除缓存.bat`（ASCII + CRLF + 无 BOM，`choice /C YN` 二次确认后跑 `clean_cache.py --yes`）。
+  - 清理类别：`__pycache__`、`*.pyc`/`*.pyo`（含 `python/` 运行时，重跑自动重建）、`*.part`/`*.tmp`/`.downloads`、`models/**/.cache/huggingface`、`*.log`、系统/编辑器杂项（`Thumbs.db`/`Desktop.ini`/`.DS_Store`/`.pytest_cache`/`.mypy_cache`/`.ruff_cache`/`.vscode`/`.idea`）、系统临时 `%TEMP%\ref_forge_*`。
+  - 保护：`app/`、`scripts/`、`models/` 模型本体、`python/` 运行时本体、`bin/`、`llama_cpp/`、`input/`、`config.json` 一律不删。默认 **dry-run**；`--yes` 执行；可选 `--output`（连 `output/`/`output_single/`）、`--git`（删 `.git`）、`--keep-runtime`（保留包内 Python 缓存）、`--no-temp`。
+  - 设计要点：按类别汇总预览（本项目 `python/Lib/site-packages` 有约 2900 个 `__pycache__`，逐条打印会刷屏，故每类只列数量/大小，条目 ≤8 时才展开）；`os.walk` 时对 `__pycache__`/`.downloads`/junk/HF 缓存**不再下钻**，避免收集其子孙；`_dedupe()` 去掉被父目录覆盖的子项；`_path_size()` 统计释放体积。
+- 影响：新增 `scripts/clean_cache.py`、`一键删除缓存.bat`；`scripts/setup_env.py`；`AGENTS.md`、`readme.md`、`REQUIREMENTS.md` 12.2、本文件。
+- 验证：dry-run 报出 `pycache 2908 项 236.21MB`、`hf 3 项`、`temp 4 项 224.82MB`，共 2915 项 / 461.03MB；`--yes` 执行 0 失败并释放 461MB，随后 `python -m compileall app scripts`、`python -c "import sys"` 正常（site-packages 缓存按需重建）；`setup_env.py --skip-pip --skip-runtime --skip-models` 正确创建并打印 `input/`、`output/`；`一键删除缓存.bat` 校验为纯 ASCII、CRLF、无 BOM。
+
 ### 3.4 历史记录（已移除的运镜识别，仅供追溯）
 
 以下条目对应的功能已随 P38 移除，不再实现；此处仅保留一句话结论：

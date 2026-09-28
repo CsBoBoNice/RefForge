@@ -186,6 +186,15 @@ def download_models(force=False):
         _run(cmd)
 
 
+def ensure_user_dirs():
+    """创建用户工作目录 input/ 与 output/，方便首次使用。"""
+    print("\n== 准备用户目录 ==")
+    for name in ("input", "output"):
+        path = os.path.join(ROOT, name)
+        os.makedirs(path, exist_ok=True)
+        print("[ok  ] %s" % path)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="RefForge 一键环境搭建")
     parser.add_argument("--skip-pip", action="store_true", help="跳过依赖安装")
@@ -210,6 +219,8 @@ def main(argv=None):
         download_runtime_assets(force=args.force)
     if not args.skip_models:
         download_models(force=args.force)
+
+    ensure_user_dirs()
 
     print("\n============================================")
     print(" 环境搭建完成。运行：启动.bat")

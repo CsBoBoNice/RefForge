@@ -27,14 +27,15 @@
   - `speech/` — `audio` `separation`（人声/背景音乐分离）`models` `diarize` `transcribe` `voiceprint` `export` `runner`
   - `describe/` — `frames`（ffmpeg 2fps 抽帧、每格取清晰帧）、`prompt` / `client` / `runner`、`prompts/`（`storyboard_*` / `frames_*` 两套六段式模板，对应两种输入模式）
   - `persons/` — `models`（real/anime 两套模型容器，按 `persons.domain` 路由）`sampler`（1fps 取最清晰）`detect`（BoT-SORT）`face`（SCRFD+ArcFace）`associate` `cluster` `crop` `export`；`anime/`（动漫后端：`embed`=CLIP、`onnx_detector`=YOLO ONNX 直驱、`face`=动漫人脸检测、`detect`=动漫人物检测+人脸锚点扩展+中心关联）；`__init__.py` 暴露 `available` / `run_phase`
-- `scripts/` — 开发、环境搭建与验收脚本（`acceptance_common`（验收公共工具：以 `input/` 视频为素材）`run_segmentation_test` `run_asr_test` `run_separation_test` `run_describe_test` `run_persons_test`（`--domain real|anime`）`make_test_videos`（可选合成素材工具，验收不再依赖）`bootstrap_python.ps1`（引导 embeddable Python）`setup_env.py`（一键安装依赖 + 运行期资产 + 全部模型）`download_utils.py`（多源测速选最快源）`download_runtime.py`（ffmpeg / llama.cpp / GGUF）`download_models` `download_separation_models` `download_person_models` `download_anime_person_models` `verify_person_env` `clean_generated` `setup_runtime.bat`）
+- `scripts/` — 开发、环境搭建与验收脚本（`acceptance_common`（验收公共工具：以 `input/` 视频为素材）`run_segmentation_test` `run_asr_test` `run_separation_test` `run_describe_test` `run_persons_test`（`--domain real|anime`）`make_test_videos`（可选合成素材工具，验收不再依赖）`bootstrap_python.ps1`（引导 embeddable Python）`setup_env.py`（一键安装依赖 + 运行期资产 + 全部模型）`download_utils.py`（多源测速选最快源）`download_runtime.py`（ffmpeg / llama.cpp / GGUF）`download_models` `download_separation_models` `download_person_models` `download_anime_person_models` `verify_person_env` `clean_generated`（清理生成物）`clean_cache`（一键删缓存，便于打包拷贝）`setup_runtime.bat`）
 - `bin/` — `ffmpeg.exe` / `ffprobe.exe` / `ffplay.exe`
 - `llama_cpp/` — `llama_bin/`（`llama-server.exe` + DLL 及其他可执行文件）
 - `python/` — 包内可移植 Python 运行时（含 site-packages）
 - `models/` — 全部离线模型：`models/asr/`（语音识别 / 声纹 / VAD）、`models/separator/`（人声分离四档）、`models/person/`（`detect/yolo11x-pose.pt` + `face/buffalo_l/`）、`models/llm/`（llama.cpp 的 `llm_model.gguf` + `mmproj_model.gguf`）
 - `下载模型.bat` — 一键下载除 llama.cpp 外的全部模型（ASR 走 ModelScope，分离走 GitHub，人物走 GitHub / hf-mirror）
-- `一键环境搭建.bat` — 从 GitHub 克隆后的首次环境搭建（引导包内 Python → 安装依赖 → 下载运行期资产 → 下载全部模型）；下载统一按实测网速自动选择最快源，可重复运行续传
-- `input/` — 待处理视频；`output/` — 输出资产
+- `一键环境搭建.bat` — 从 GitHub 克隆后的首次环境搭建（引导包内 Python → 安装依赖 → 下载运行期资产 → 下载全部模型）；下载统一按实测网速自动选择最快源，可重复运行续传；结束时创建 `input/` 与 `output/`
+- `一键删除缓存.bat` — 一键删除 `__pycache__` / `*.pyc` / `*.part` / `*.log` / HF `.cache` 记账缓存 / 系统临时工作目录，便于整包压缩拷贝到其他设备（`scripts\clean_cache.py`）
+- `input/` — 待处理视频（环境搭建/首次运行自动创建）；`output/` — 输出资产
 - `config.json` — 阈值配置；`REQUIREMENTS.md` — 需求与设计（以代码为准）；`readme.md` — 用户使用说明；`PROJECT_NOTES.md` — 开发笔记
 - `skill/` — H3 prompt 写作规范（`SKILL.md` / `ref-en.txt` / `base-en.txt`）
 - `demo/` — 参考项目，**只读参考，不要修改**
@@ -58,6 +59,7 @@
   | 下载运行期资产（ffmpeg / llama.cpp / GGUF） | `dev.bat scripts\download_runtime.py` |
   | 下载模型（除 llama.cpp） | 双击 `下载模型.bat` |
   | 清理生成物 | `dev.bat scripts\clean_generated.py --yes` |
+  | 一键删缓存（打包拷贝前） | 双击 `一键删除缓存.bat` 或 `dev.bat scripts\clean_cache.py --yes` |
   | 任意 Python | `dev.bat -c "..."` 或 `dev.bat <script.py>` |
 
 - 验收脚本写入系统临时目录，**不要污染** `input/` / `output/`。

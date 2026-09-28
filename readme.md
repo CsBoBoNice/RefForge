@@ -250,6 +250,7 @@ output/
 | 人物提取自检（真人） | `dev.bat scripts\run_persons_test.py` |
 | 人物提取自检（动漫，需先备好动漫模型） | `dev.bat scripts\run_persons_test.py --domain anime` |
 | 清理生成物（预览 / 执行） | `dev.bat scripts\clean_generated.py [--yes]` |
+| 一键删除缓存（打包拷贝到其他设备前；默认预览） | 双击 `一键删除缓存.bat` 或 `dev.bat scripts\clean_cache.py [--yes]` |
 
 > 模型缺失时程序会**自动跳过**对应阶段并告警，不会崩溃；补齐模型后重跑即可。
 
@@ -285,6 +286,9 @@ output/
 
 **Q：输出乱了想清空？**
 双击 `清理生成内容.bat`（保护模型、Python 环境与输入视频，不会误删）。
+
+**Q：想把整包拷到别的电脑用？**
+先双击 **`一键删除缓存.bat`** 清掉缓存与临时文件（`__pycache__` / `*.pyc`、`*.part`、日志、HuggingFace 记账缓存、系统临时工作目录），再把整个文件夹压缩拷贝即可；脚本默认**不动** `input\` 视频与 `output\` 结果。需要连输出一起清空用 `dev.bat scripts\clean_cache.py --yes --output`，想顺便丢弃 git 历史用 `--git`。
 
 ---
 
